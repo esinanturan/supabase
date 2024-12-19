@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as Sentry from '@sentry/nextjs'
 import { useSupabaseClient } from '@supabase/auth-helpers-react'
-import { ExternalLink, Loader2, Mail, Plus, X } from 'lucide-react'
+import { ChevronRight, ExternalLink, Loader2, Mail, Plus, X } from 'lucide-react'
 import Link from 'next/link'
 import { ChangeEvent, useEffect, useRef, useState } from 'react'
 import { SubmitHandler, useForm } from 'react-hook-form'
@@ -21,8 +21,10 @@ import { useProfile } from 'lib/profile'
 import {
   Badge,
   Button,
-  Checkbox_Shadcn_,
   cn,
+  Collapsible_Shadcn_,
+  CollapsibleContent_Shadcn_,
+  CollapsibleTrigger_Shadcn_,
   Form_Shadcn_,
   FormControl_Shadcn_,
   FormField_Shadcn_,
@@ -35,6 +37,7 @@ import {
   SelectTrigger_Shadcn_,
   SelectValue_Shadcn_,
   Separator,
+  Switch,
   TextArea_Shadcn_,
 } from 'ui'
 import { FormItemLayout } from 'ui-patterns/form/FormItemLayout/FormItemLayout'
@@ -50,6 +53,7 @@ import {
   SEVERITY_OPTIONS,
 } from './Support.constants'
 import { formatMessage, uploadAttachments } from './SupportForm.utils'
+import { Admonition } from 'ui-patterns'
 
 const MAX_ATTACHMENTS = 5
 const INCLUDE_DISCUSSIONS = ['Problem', 'Database_unresponsive']
@@ -65,7 +69,14 @@ interface SupportFormV2Props {
 export const SupportFormV2 = ({ setSentCategory, setSelectedProject }: SupportFormV2Props) => {
   const { profile } = useProfile()
   const supabaseClient = useSupabaseClient()
-  const { ref, slug, category: urlCategory, subject: urlSubject, message: urlMessage } = useParams()
+  const {
+    ref,
+    slug,
+    category: urlCategory,
+    subject: urlSubject,
+    message: urlMessage,
+    error,
+  } = useParams()
 
   const uploadButtonRef = useRef(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -200,7 +211,7 @@ export const SupportFormV2 = ({ setSentCategory, setSelectedProject }: SupportFo
       organizationSlug: values.organizationSlug === 'no-org' ? undefined : values.organizationSlug,
       library:
         values.category === 'Problem' && selectedLibrary !== undefined ? selectedLibrary.key : '',
-      message: formatMessage(values.message, attachments),
+      message: formatMessage(values.message, attachments, error),
       verified: true,
       tags: ['dashboard-support-form'],
       siteUrl: '',
@@ -342,7 +353,9 @@ export const SupportFormV2 = ({ setSentCategory, setSelectedProject }: SupportFo
                   <SelectContent_Shadcn_>
                     <SelectGroup_Shadcn_>
                       {organizations?.map((org) => (
-                        <SelectItem_Shadcn_ value={org.slug}>{org.name}</SelectItem_Shadcn_>
+                        <SelectItem_Shadcn_ key={org.slug} value={org.slug}>
+                          {org.name}
+                        </SelectItem_Shadcn_>
                       ))}
                       {isSuccessOrganizations && (organizations ?? []).length === 0 && (
                         <SelectItem_Shadcn_ value="no-org">
@@ -378,7 +391,7 @@ export const SupportFormV2 = ({ setSentCategory, setSelectedProject }: SupportFo
                     <SelectContent_Shadcn_>
                       <SelectGroup_Shadcn_>
                         {projects?.map((project) => (
-                          <SelectItem_Shadcn_ value={project.ref as string}>
+                          <SelectItem_Shadcn_ key={project.ref} value={project.ref as string}>
                             {project.name}
                           </SelectItem_Shadcn_>
                         ))}
@@ -425,7 +438,7 @@ export const SupportFormV2 = ({ setSentCategory, setSelectedProject }: SupportFo
                     <SelectContent_Shadcn_>
                       <SelectGroup_Shadcn_>
                         {CATEGORY_OPTIONS.map((option) => (
-                          <SelectItem_Shadcn_ value={option.value}>
+                          <SelectItem_Shadcn_ key={option.value} value={option.value}>
                             {option.label}
                             <span className="block text-xs text-foreground-lighter">
                               {option.description}
@@ -458,7 +471,7 @@ export const SupportFormV2 = ({ setSentCategory, setSelectedProject }: SupportFo
                     <SelectContent_Shadcn_>
                       <SelectGroup_Shadcn_>
                         {SEVERITY_OPTIONS.map((option) => (
-                          <SelectItem_Shadcn_ value={option.value}>
+                          <SelectItem_Shadcn_ key={option.value} value={option.value}>
                             {option.label}
                             <span className="block text-xs text-foreground-lighter">
                               {option.description}
@@ -554,7 +567,7 @@ export const SupportFormV2 = ({ setSentCategory, setSelectedProject }: SupportFo
                     <SelectContent_Shadcn_>
                       <SelectGroup_Shadcn_>
                         {CLIENT_LIBRARIES.map((option) => (
-                          <SelectItem_Shadcn_ value={option.language}>
+                          <SelectItem_Shadcn_ key={option.language} value={option.language}>
                             {option.language}
                           </SelectItem_Shadcn_>
                         ))}
@@ -616,33 +629,18 @@ export const SupportFormV2 = ({ setSentCategory, setSelectedProject }: SupportFo
                   placeholder="Describe the issue you're facing, along with any relevant information. Please be as detailed and specific as possible."
                 />
               </FormControl_Shadcn_>
+              {error !== undefined && (
+                <Admonition
+                  showIcon={false}
+                  type="default"
+                  className="mt-2"
+                  title="The error that you ran into will be included in your message for reference"
+                  description={`Error: ${error}`}
+                />
+              )}
             </FormItemLayout>
           )}
         />
-
-        {['Problem', 'Database_unresponsive', 'Performance'].includes(category) && (
-          <FormField_Shadcn_
-            name="allowSupportAccess"
-            control={form.control}
-            render={({ field }) => (
-              <FormItemLayout
-                layout="flex"
-                className={cn(CONTAINER_CLASSES)}
-                label="Allow Supabase Support to access your project temporarily"
-                description="In some cases, we may require temporary access to your project to complete troubleshooting, or to answer questions related specifically to your project"
-              >
-                <FormControl_Shadcn_>
-                  <Checkbox_Shadcn_
-                    {...field}
-                    value={String(field.value)}
-                    checked={field.value}
-                    onCheckedChange={(value) => field.onChange(value)}
-                  />
-                </FormControl_Shadcn_>
-              </FormItemLayout>
-            )}
-          />
-        )}
 
         <div className={cn(CONTAINER_CLASSES)}>
           <div className="flex flex-col gap-y-1">
@@ -694,26 +692,85 @@ export const SupportFormV2 = ({ setSentCategory, setSelectedProject }: SupportFo
           </div>
         </div>
 
-        <div className={cn(CONTAINER_CLASSES)}>
-          <div className="flex items-center space-x-1 justify-end block text-sm mt-0 mb-2">
-            <p className="text-foreground-light">We will contact you at</p>
-            <p className="text-foreground font-medium">{respondToEmail}</p>
-          </div>
-          <div className="flex items-center space-x-1 justify-end block text-sm mt-0 mb-2">
-            <p className="text-foreground-light">
-              Please ensure you haven't blocked Hubspot in your emails
-            </p>
-          </div>
-          <div className="flex justify-end">
-            <Button
-              htmlType="submit"
-              size="small"
-              icon={<Mail />}
-              disabled={isSubmitting}
-              loading={isSubmitting}
-            >
-              Send support request
-            </Button>
+        <Separator />
+
+        {['Problem', 'Database_unresponsive', 'Performance'].includes(category) && (
+          <>
+            <FormField_Shadcn_
+              name="allowSupportAccess"
+              control={form.control}
+              render={({ field }) => (
+                <FormItemLayout
+                  name="allowSupportAccess"
+                  className="px-6"
+                  layout="flex"
+                  label="Allow Supabase Support and AI-Assisted Diagnostics access to your project"
+                  description={
+                    <Collapsible_Shadcn_>
+                      <div className="flex items-center gap-x-2">
+                        <CollapsibleTrigger_Shadcn_ className="group flex items-center gap-x-2 ">
+                          <ChevronRight
+                            strokeWidth={2}
+                            size={14}
+                            className="transition-all group-data-[state=open]:rotate-90 text-foreground-lighter duration-200 -ml-1"
+                          />
+                          <p className="text-xs text-foreground-light underline">
+                            More information about temporary access
+                          </p>
+                        </CollapsibleTrigger_Shadcn_>
+                      </div>
+                      <CollapsibleContent_Shadcn_ className="text-xs text-foreground-light mt-2 space-y-2">
+                        <p>
+                          By enabling this, you grant permission for our support team to access your
+                          project temporarily and, if applicable, to use AI tools to assist in
+                          diagnosing and resolving issues. This access may involve analyzing
+                          database configurations, query performance, and other relevant data to
+                          expedite troubleshooting and enhance support accuracy. We are committed to
+                          maintaining strict data privacy and security standards in all support
+                          activities.{' '}
+                          <Link
+                            href="https://supabase.com/privacy"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-foreground-light underline hover:text-foreground transition"
+                          >
+                            Privacy Policy
+                          </Link>
+                        </p>
+                      </CollapsibleContent_Shadcn_>
+                    </Collapsible_Shadcn_>
+                  }
+                >
+                  <Switch
+                    id="allowSupportAccess"
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormItemLayout>
+              )}
+            />
+          </>
+        )}
+
+        <div className={cn(CONTAINER_CLASSES, 'flex flex-col items-end gap-3 -mt-4')}>
+          <Button
+            htmlType="submit"
+            size="large"
+            block
+            icon={<Mail />}
+            disabled={isSubmitting}
+            loading={isSubmitting}
+          >
+            Send support request
+          </Button>
+          <div className="flex flex-col items-end gap-1">
+            <div className="space-x-1 text-xs">
+              <span className="text-foreground-light">We will contact you at</span>
+              <span className="text-foreground font-medium">{respondToEmail}</span>
+            </div>
+            <span className="text-foreground-light text-xs">
+              Please ensure emails from supabase.io are allowed
+            </span>
           </div>
         </div>
       </form>
